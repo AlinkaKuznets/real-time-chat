@@ -3,13 +3,13 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDzI69DEo6ciT4O__QF6u_r-Cp_zNmiVfs",
-  authDomain: "realtimechat-9e43c.firebaseapp.com",
-  databaseURL: "https://realtimechat-9e43c-default-rtdb.firebaseio.com",
-  projectId: "realtimechat-9e43c",
-  storageBucket: "realtimechat-9e43c.firebasestorage.app",
-  messagingSenderId: "208936780928",
-  appId: "1:208936780928:web:1c543b5b3f21ee8e181265",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
