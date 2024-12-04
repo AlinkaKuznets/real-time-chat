@@ -34,6 +34,7 @@ export default function Chat() {
       unSub();
     };
   }, [chatId]);
+  
 
   async function handleSend() {
     if (text === "") return;
@@ -81,10 +82,9 @@ export default function Chat() {
   }
 
   const formatTimestamp = (timestamp) => {
-    const options = { hour: '2-digit', minute: '2-digit', hour12: false };
+    const options = { hour: "2-digit", minute: "2-digit", hour12: false };
     return timestamp.toLocaleTimeString([], options);
   };
-
 
   return (
     <div className="chat">
@@ -92,14 +92,19 @@ export default function Chat() {
         <div className="user">
           <img src="./avatar.jpg" alt="" />
           <div className="user-information">
-            <span>Kek Lol</span>
+            <span>{user.userName}</span>
             <p>Lorem ipsum dolor sit amet</p>
           </div>
         </div>
       </div>
       <div className="center">
         {chat?.messages?.map((message) => (
-          <div className={message.senderId===currentUser.id?"message own":'message'} key={message?.createdAt}>
+          <div
+            className={
+              message.senderId === currentUser.id ? "message own" : "message"
+            }
+            key={message?.createdAt}
+          >
             <div className="texts">
               <p>{message.text}</p>
               <span>{formatTimestamp(message.createdAt.toDate())}</span>

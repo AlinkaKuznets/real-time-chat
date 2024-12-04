@@ -2,36 +2,49 @@
 import React, { useEffect, useState } from "react";
 import "./chatList.css";
 import { FaSearch } from "react-icons/fa";
+import { FaUserGroup } from "react-icons/fa6";
 import { IoAddCircleOutline } from "react-icons/io5";
-import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "@/app/lib/firebase.config";
 import { userStore } from "@/app/lib/userStore";
 import { chatStore } from "../../../lib/chatStore";
 import AddUser from "./AddUser";
+import CreateGroup from "./CreateGroup";
+import { groupStore } from "@/app/lib/groupStore";
 
 export default function ChatList() {
   const [addMode, setAddMode] = useState(false);
   const [chats, setChats] = useState([]);
+  const [groupMode, setGroupMode] = useState(false);
+  const [groups, setGroups] = useState([]);
 
   const { currentUser } = userStore();
+  if (!currentUser || !currentUser.id) {
+    console.error("Current user is not defined.");
+  }
   const { chatId, changeChat } = chatStore();
+  const { groupId } = groupStore();
 
   useEffect(() => {
     const unSub = onSnapshot(
       doc(db, "userchats", currentUser.id),
       async (res) => {
-        const items = res.data().chats;
+        const items = res.data()?.chats || [];
 
-        const promisses = items.map(async (item) => {
-          const userDocRef = doc(db, "users", item.receiverId);
-          const userDocSnap = await getDoc(userDocRef);
+        const promises = items.map(async (item) => {
+          try {
+            const userDocRef = doc(db, "users", item.receiverId);
+            const userDocSnap = await getDoc(userDocRef);
 
-          const user = userDocSnap.data();
-
-          return { ...item, user };
+            const user = userDocSnap.data();
+            return { ...item, user };
+          } catch (error) {
+            console.error("Error fetching user document:", error);
+            return null;
+          }
         });
 
-        const chatData = await Promise.all(promisses);
+        const chatData = await Promise.all(promises);
         setChats(chatData.sort((a, b) => b.updatedAt - a.updatedAt));
       }
     );
@@ -39,6 +52,23 @@ export default function ChatList() {
       unSub();
     };
   }, [currentUser.id]);
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const groupsSnapshot = await getDocs(collection(db, "groups"));
+        const groupsData = groupsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setGroups(groupsData);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      }
+    };
+
+    fetchGroups();
+  }, []);
 
   async function handleSelect(chat) {
     const userChats = chats.map((item) => {
@@ -74,6 +104,12 @@ export default function ChatList() {
             setAddMode((prev) => !prev);
           }}
         />
+        <FaUserGroup
+          className="w-8 h-8 cursor-pointer"
+          onClick={() => {
+            setGroupMode((prev) => !prev);
+          }}
+        />
       </div>
       {chats.map((chat) => (
         <div
@@ -88,7 +124,22 @@ export default function ChatList() {
           </div>
         </div>
       ))}
+       {groups.map((group) => (
+        <div
+          className="items"
+          key={group.id}
+          onClick={() => handleSelect({ chatId: group.id, isGroup: true })}
+        >
+          <img src="./avatar.jpg" alt="" />
+          <div className="text">
+            <span>{group.name}</span>
+            <p>{group.lastMessage}</p>
+          </div>
+        </div>
+      ))}
+
       {addMode && <AddUser />}
+      {groupMode && <CreateGroup />}
     </div>
   );
 }
