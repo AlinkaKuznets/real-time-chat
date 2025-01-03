@@ -21,10 +21,9 @@ export const groupStore = create((set) => ({
       });
       set({ groupId: newGroupRef.id });
     } catch (error) {
-      console.error("Ошибка при создании группы:", error);
+      console.error(error);
     }
   },
-
 
   changeGroup: (groupId, members) => {
     set({

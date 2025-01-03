@@ -13,34 +13,58 @@ import {
 import { db } from "@/app/lib/firebase.config";
 import { chatStore } from "@/app/lib/chatStore";
 import { userStore } from "@/app/lib/userStore";
+import { groupChatStore } from "@/app/lib/groupChatStore";
 
 export default function Chat() {
   const [openEmoji, setOpenEmoji] = useState(false);
   const [text, setText] = useState("");
   const [chat, setChat] = useState("");
+  const [group, setGroup] = useState("");
   const { chatId, user } = chatStore();
-  const { currentUser } = userStore();
-  const endRef = useRef(null);
+  const { groupChatId } = groupChatStore();
+  const { currentUser, isCurrentUserBlocked, isReceiverBlocked } = userStore();
 
+  const endRef = useRef(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [chat, group]);
 
   useEffect(() => {
-    const unSub = onSnapshot(doc(db, "chats", chatId), (res) => {
-      setChat(res.data());
-    });
-    return () => {
-      unSub();
-    };
+    if (chatId) {
+      const unSub = onSnapshot(doc(db, "chats", chatId), (res) => {
+        setChat(res.data());
+        setGroup("");
+      });
+      return () => unSub();
+    }
   }, [chatId]);
-  
 
-  async function handleSend() {
-    if (text === "") return;
+  useEffect(() => {
+    if (groupChatId) {
+      const unSub = onSnapshot(doc(db, "groupChats", groupChatId), (res) => {
+        setGroup(res.data());
+        setChat("");
+      });
+      return () => unSub();
+    }
+  }, [groupChatId]);
+
+
+  const handleSend = async () => {
+    if (text.trim() === "") return;
 
     try {
-      await updateDoc(doc(db, "chats", chatId), {
+      let chatRef;
+      if (groupChatId) {
+        chatRef = doc(db, "groupChats", groupChatId);
+      } else if (chatId) {
+        chatRef = doc(db, "chats", chatId);
+      } else {
+        console.log("No chat or group chat ID found");
+        return;
+      }
+
+      await updateDoc(chatRef, {
         messages: arrayUnion({
           senderId: currentUser.id,
           text,
@@ -48,38 +72,70 @@ export default function Chat() {
         }),
       });
 
-      const userIDs = [currentUser.id, user.id];
-
-      userIDs.forEach(async (id) => {
-        const userChatsRef = doc(db, "userchats", id);
-        const userChatsSnapshot = await getDoc(userChatsRef);
-
-        if (userChatsSnapshot.exists()) {
-          const userChatsData = userChatsSnapshot.data();
-
-          const chatIndex = userChatsData.chats.findIndex(
-            (c) => c.chatId === chatId
-          );
-
-          userChatsData.chats[chatIndex].lastMessage = text;
-          userChatsData.chats[chatIndex].isSeen =
-            id === currentUser.id ? true : false;
-          userChatsData.chats[chatIndex].updatedAt = Date.now();
-
-          await updateDoc(userChatsRef, {
-            chats: userChatsData.chats,
-          });
-        }
+      await updateDoc(chatRef, {
+        lastMessage: {
+          text,
+          senderId: currentUser.id,
+        },
       });
-    } catch (error) {
-      console.log(error);
-    }
-  }
 
-  function handleEmoji(e) {
-    setText((prev) => prev + e.emoji);
+      const userIDs = [currentUser.id];
+      if (user) userIDs.push(user.id);
+
+      await Promise.all(
+        userIDs.map(async (id) => {
+          const userChatsRef = doc(db, "userchats", id);
+          const userChatsSnapshot = await getDoc(userChatsRef);
+
+          if (userChatsSnapshot.exists()) {
+            const userChatsData = userChatsSnapshot.data();
+
+            if (groupChatId) {
+              if (Array.isArray(userChatsData.groups)) {
+                const groupIndex = userChatsData.groups.findIndex(
+                  (c) => c.groupChatId === groupChatId
+                );
+
+                if (groupIndex !== -1) {
+                  userChatsData.groups[groupIndex].lastMessage = text;
+                  userChatsData.groups[groupIndex].isSeen =
+                    id === currentUser.id;
+                  userChatsData.groups[groupIndex].updatedAt = Date.now();
+                  await updateDoc(userChatsRef, {
+                    groups: userChatsData.groups,
+                  });
+                }
+              }
+            } else if (chatId) {
+              if (Array.isArray(userChatsData.chats)) {
+                const chatIndex = userChatsData.chats.findIndex(
+                  (c) => c.chatId === chatId
+                );
+
+                if (chatIndex !== -1) {
+                  userChatsData.chats[chatIndex].lastMessage = text;
+                  userChatsData.chats[chatIndex].isSeen = id === currentUser.id;
+                  userChatsData.chats[chatIndex].updatedAt = Date.now();
+                  await updateDoc(userChatsRef, {
+                    chats: userChatsData.chats,
+                  });
+                }
+              }
+            }
+          }
+        })
+      );
+
+      setText("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const handleEmoji = (emoji) => {
+    setText((prev) => prev + emoji.emoji);
     setOpenEmoji(false);
-  }
+  };
 
   const formatTimestamp = (timestamp) => {
     const options = { hour: "2-digit", minute: "2-digit", hour12: false };
@@ -92,13 +148,13 @@ export default function Chat() {
         <div className="user">
           <img src="./avatar.jpg" alt="" />
           <div className="user-information">
-            <span>{user.userName}</span>
+            <span>{group ? group.name : user.userName}</span>
             <p>Lorem ipsum dolor sit amet</p>
           </div>
         </div>
       </div>
       <div className="center">
-        {chat?.messages?.map((message) => (
+        {(chat?.messages || []).concat(group?.messages || []).map((message) => (
           <div
             className={
               message.senderId === currentUser.id ? "message own" : "message"
@@ -118,6 +174,7 @@ export default function Chat() {
           type="text"
           placeholder="Type a message..."
           value={text}
+          disabled={isCurrentUserBlocked || isReceiverBlocked}
           onChange={(e) => setText(e.target.value)}
         />
         <div className="emoji">
@@ -129,7 +186,11 @@ export default function Chat() {
             <EmojiPicker open={openEmoji} onEmojiClick={handleEmoji} />
           </div>
         </div>
-        <button className="send-button" onClick={handleSend}>
+        <button
+          className="send-button"
+          onClick={handleSend}
+          disabled={isCurrentUserBlocked || isReceiverBlocked}
+        >
           Send
         </button>
       </div>
