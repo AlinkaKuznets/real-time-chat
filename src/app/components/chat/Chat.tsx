@@ -20,9 +20,17 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [chat, setChat] = useState("");
   const [group, setGroup] = useState("");
-  const { chatId, user } = chatStore();
+  const { chatId, user, isCurrentUserBlocked, isReceiverBlocked } = chatStore();
+  const { currentUser } = userStore();
   const { groupChatId } = groupChatStore();
-  const { currentUser, isCurrentUserBlocked, isReceiverBlocked } = userStore();
+
+  const isBlocked = isCurrentUserBlocked || isReceiverBlocked;
+
+  useEffect(() => {
+    if (isCurrentUserBlocked) {
+      console.log("Текущий пользователь заблокирован");
+    }
+  }, [isCurrentUserBlocked]);
 
   const endRef = useRef(null);
   useEffect(() => {
@@ -48,7 +56,6 @@ export default function Chat() {
       return () => unSub();
     }
   }, [groupChatId]);
-
 
   const handleSend = async () => {
     if (text.trim() === "") return;
@@ -174,7 +181,7 @@ export default function Chat() {
           type="text"
           placeholder="Type a message..."
           value={text}
-          disabled={isCurrentUserBlocked || isReceiverBlocked}
+          disabled={isBlocked}
           onChange={(e) => setText(e.target.value)}
         />
         <div className="emoji">
@@ -189,7 +196,7 @@ export default function Chat() {
         <button
           className="send-button"
           onClick={handleSend}
-          disabled={isCurrentUserBlocked || isReceiverBlocked}
+          disabled={isBlocked}
         >
           Send
         </button>

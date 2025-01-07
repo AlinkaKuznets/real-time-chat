@@ -1,27 +1,26 @@
-"use client";
 import React, { useEffect, useState } from "react";
 import "./details.css";
 import { FaArrowUp } from "react-icons/fa6";
 import { auth, db } from "../../lib/firebase.config";
 import { useStore } from "zustand";
 import { chatStore } from "@/app/lib/chatStore";
-import { groupChatStore } from "@/app/lib/groupChatStore";
-import { getUserById } from "@/app/lib/getElementById";
+import { userStore } from "@/app/lib/userStore";
 import {
-  arrayRemove,
-  arrayUnion,
   doc,
   onSnapshot,
   updateDoc,
+  arrayRemove,
+  arrayUnion,
 } from "firebase/firestore";
-import { userStore } from "@/app/lib/userStore";
+import { getUserById } from "@/app/lib/getElementById";
+import { groupChatStore } from "@/app/lib/groupChatStore";
 
 export default function Details() {
   const user = useStore(chatStore, (state) => state.user);
   const { members, groupId } = groupChatStore();
+  const { currentUser } = useStore(userStore);
+  const { changeBlock, changeChat } = useStore(chatStore);
   const [usernames, setUsernames] = useState({});
-  const { currentUser } = userStore();
-  const { changeBlock } = chatStore();
   const [isReceiverBlocked, setIsReceiverBlocked] = useState(false);
 
   useEffect(() => {
@@ -48,13 +47,15 @@ export default function Details() {
       const data = doc.data();
       if (data) {
         const blockedUsers = data.blocked || [];
-        setIsReceiverBlocked(blockedUsers.includes(user.id));
-        changeBlock(blockedUsers.includes(user.id));
+        const blocked = blockedUsers.includes(user.id);
+        setIsReceiverBlocked(blocked);
+        changeBlock(blocked);
+        chatStore.setState({ isCurrentUserBlocked: blocked });
       }
     });
 
     return () => unsubscribe();
-  }, [currentUser.id]);
+  }, [currentUser.id, user.id]);
 
   async function handleBlock() {
     const userDocRef = doc(db, "users", currentUser.id);
@@ -63,7 +64,7 @@ export default function Details() {
         blocked: isReceiverBlocked ? arrayRemove(user.id) : arrayUnion(user.id),
       });
       setIsReceiverBlocked(!isReceiverBlocked);
-      changeBlock(!isReceiverBlocked);
+      changeChat(!isReceiverBlocked);
     } catch (error) {
       console.log(error);
     }
